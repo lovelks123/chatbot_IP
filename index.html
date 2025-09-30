@@ -4,6 +4,16 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Class Chatbot</title>
+
+  <!-- Allow loading JSONP script from Apps Script on GitHub Pages -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' https://script.google.com https://script.googleusercontent.com;
+                 connect-src 'self' https://script.google.com https://script.googleusercontent.com;
+                 img-src 'self' data:;
+                 style-src 'self' 'unsafe-inline';
+                 frame-src https://script.google.com https://script.googleusercontent.com;">
+
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:18px;background:#f7f8fb;color:#111}
     .container{max-width:900px;margin:0 auto;background:#fff;padding:18px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -57,12 +67,17 @@
 
 <script>
 // ======= CONFIG =======
-const API_ROOT = "https://script.google.com/macros/s/AKfycbw1NuX0YGXDPnHarvDo9l_7w2YG2Cu-hcapCBUmjxa0HQKlvcVj6amU8ZkXk95IBmmCyw/exec"; // <-- put the SAME exec you tested
+const API_ROOT = "https://script.google.com/macros/s/AKfycbw1NuX0YGXDPnHarvDo9l_7w2YG2Cu-hcapCBUmjxa0HQKlvcVj6amU8ZkXk95IBmmCyw/exec"; // your /exec URL
 // ======================
 
 function jsonp(url, cbName){
   return new Promise((resolve,reject)=>{
     const timeout = setTimeout(()=>reject(new Error("JSONP timeout: "+url)), 15000);
+
+    // add cache-buster so CDNs don’t serve stale/no content
+    const sep = url.includes('?') ? '&' : '?';
+    const full = url + sep + "callback=" + encodeURIComponent(cbName) + "&_ts=" + Date.now();
+
     window[cbName] = function(data){
       clearTimeout(timeout);
       resolve(data);
@@ -70,9 +85,9 @@ function jsonp(url, cbName){
       const s=document.getElementById(cbName); if(s) s.remove();
     };
     const s=document.createElement('script');
-    s.src = url + (url.includes('?')?'&':'?') + "callback=" + encodeURIComponent(cbName);
+    s.src = full;
     s.id = cbName;
-    s.onerror = ()=>{ clearTimeout(timeout); reject(new Error("JSONP network error: "+url)); };
+    s.onerror = ()=>{ clearTimeout(timeout); reject(new Error("JSONP network error: "+full)); };
     document.body.appendChild(s);
   });
 }
@@ -160,8 +175,13 @@ async function ask(){
       document.getElementById('answerText').textContent="No close match found. Try rephrasing.";
       return;
     }
-    document.getElementById('confidence').textContent="Confidence: "+res.score+"% (matched: "+res.matched
+    document.getElementById('confidence').textContent="Confidence: "+res.score+"% (matched: "+res.matched_question+")";
+    document.getElementById('answerText').textContent=res.answer||"(No answer)";
+  }catch(err){ showError(err.message); }
+}
 
-
-
-
+document.getElementById('askBtn').addEventListener('click', ask);
+loadUnits();
+</script>
+</body>
+</html>
