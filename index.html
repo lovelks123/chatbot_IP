@@ -57,7 +57,7 @@
 
 <script>
 // ======= CONFIG =======
-const API_ROOT = "https://script.google.com/macros/s/AKfycbwD3YzS0Xtr9yGcD6-RnD4MLtOaBqyqpC-aC-4nmgLYqOL5zxamKxcVTgnGCvH6eFcIqg/exec"; // <-- put the SAME exec you tested
+const API_ROOT = "https://script.google.com/macros/s/AKfycbz_ouEcv7CW9pQh2idp66YprJ0OKWlpeAILtH7kER0nF9t5ykOMtN8ciSCcPXynmycr4w/exec"; // <-- put the SAME exec you tested
 // ======================
 
 function jsonp(url, cbName){
@@ -161,4 +161,5 @@ async function ask(){
       return;
     }
     document.getElementById('confidence').textContent="Confidence: "+res.score+"% (matched: "+res.matched
+
 
