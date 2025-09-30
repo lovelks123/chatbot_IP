@@ -1,36 +1,45 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Class Chatbot</title>
   <style>
     body{font-family:Arial,Helvetica,sans-serif;margin:18px;background:#f7f8fb;color:#111}
-    .container{max-width:880px;margin:0 auto;background:#fff;padding:18px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .container{max-width:900px;margin:0 auto;background:#fff;padding:18px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
     h1{margin:0 0 12px;text-align:center}
     select,input[type=text]{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd}
     button{padding:8px 12px;border-radius:6px;border:none;background:#2b7cff;color:#fff;cursor:pointer}
     .muted{color:#666;font-size:0.95em}
     .qitem{padding:8px;border-bottom:1px solid #eee;cursor:pointer}
     .card{background:#fbfbff;padding:12px;border-radius:6px;margin-top:10px;border:1px solid #eef2ff}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:700px){ .row{grid-template-columns:1fr} }
+    .error{color:#b00020;font-weight:600}
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Class Chatbot</h1>
 
-    <div style="margin-top:12px">
-      <label><strong>Select Chapter</strong></label>
-      <select id="chapterSelect"></select>
+    <div class="row">
+      <div>
+        <label for="unitSelect"><strong>Select Unit</strong></label>
+        <select id="unitSelect" title="Select Unit"></select>
+      </div>
+      <div>
+        <label for="chapterSelect"><strong>Select Chapter</strong></label>
+        <select id="chapterSelect" title="Select Chapter"></select>
+      </div>
     </div>
 
     <div style="margin-top:12px">
       <label><strong>Or browse questions</strong></label>
-      <div id="questionList" style="border:1px solid #eee;border-radius:6px;background:#fff;max-height:300px;overflow:auto;padding:6px"></div>
+      <div id="questionList" style="border:1px solid #eee;border-radius:6px;background:#fff;max-height:320px;overflow:auto;padding:6px"></div>
     </div>
 
     <div style="margin-top:12px">
-      <label><strong>Ask a question</strong></label>
+      <label for="studentQuestion"><strong>Ask a question</strong></label>
       <input id="studentQuestion" type="text" placeholder="Type your question here (or leave empty to browse)"/>
     </div>
 
@@ -43,79 +52,112 @@
       <div id="answerText" style="white-space:pre-wrap;margin-top:8px"></div>
     </div>
 
-    <div id="message" class="muted" style="margin-top:12px"></div>
+    <div id="message" class="muted" style="margin-top:12px;"></div>
   </div>
 
 <script>
-/* ======= CONFIG: paste your Apps Script Web App (/exec) URL here ======= */
-const API_ROOT = "https://script.google.com/macros/s/AKfycbwpDOwHUGi0Ztt_EDUkZ6ipUL0AUPGoWCswq0pLzX74I45L36zbzodqYlvmmJCwvdEmWA/exec"; // <-- replace this
-/* ===================================================================== */
+// ======= CONFIG =======
+const API_ROOT = "https://https://script.google.com/macros/s/AKfycbwD3YzS0Xtr9yGcD6-RnD4MLtOaBqyqpC-aC-4nmgLYqOL5zxamKxcVTgnGCvH6eFcIqg/exec/"; // <-- put the SAME exec you tested
+// ======================
 
-function loadJSONP(endpoint, callbackName) {
-  return new Promise((resolve, reject) => {
-    window[callbackName] = function(data) {
+function jsonp(url, cbName){
+  return new Promise((resolve,reject)=>{
+    const timeout = setTimeout(()=>reject(new Error("JSONP timeout: "+url)), 15000);
+    window[cbName] = function(data){
+      clearTimeout(timeout);
       resolve(data);
-      try { delete window[callbackName]; } catch(e) { window[callbackName] = undefined; }
-      const s = document.getElementById(callbackName); if (s) s.remove();
+      try{ delete window[cbName]; }catch(e){}
+      const s=document.getElementById(cbName); if(s) s.remove();
     };
-    const script = document.createElement('script');
-    script.src = endpoint + (endpoint.indexOf('?') === -1 ? '?' : '&') + "callback=" + encodeURIComponent(callbackName);
-    script.id = callbackName;
-    script.onerror = function(){ reject(new Error("Failed to load " + endpoint)); };
-    document.body.appendChild(script);
+    const s=document.createElement('script');
+    s.src = url + (url.includes('?')?'&':'?') + "callback=" + encodeURIComponent(cbName);
+    s.id = cbName;
+    s.onerror = ()=>{ clearTimeout(timeout); reject(new Error("JSONP network error: "+url)); };
+    document.body.appendChild(s);
   });
 }
+const cb = p => p + "_" + Math.random().toString(36).slice(2,9);
 
-function cbName(prefix){ return prefix + "_cb_" + Math.random().toString(36).slice(2,9); }
-
-async function loadChapters(){
-  const cb = cbName("chap");
-  const url = API_ROOT + "?action=chapters";
-  const res = await loadJSONP(url, cb).catch(()=>null);
-  if(!res || !res.chapters){ document.getElementById('message').textContent = "Unable to load chapters."; return; }
-  const sel = document.getElementById('chapterSelect');
-  sel.innerHTML = "";
-  res.chapters.forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
-  sel.selectedIndex = 0;
-  sel.onchange = ()=> loadQuestionsForChapter(sel.value);
-  loadQuestionsForChapter(sel.value || "All Chapters");
-  document.getElementById('message').textContent = "";
+function showError(msg){
+  console.error(msg);
+  document.getElementById('message').innerHTML = '<span class="error">❌ '+msg+'</span>';
 }
 
-async function loadQuestionsForChapter(chapter){
-  const cb = cbName("qs");
-  const url = API_ROOT + "?action=questions&chapter=" + encodeURIComponent(chapter);
-  document.getElementById('questionList').innerHTML = "Loading...";
-  const res = await loadJSONP(url, cb).catch(()=>null);
-  const container = document.getElementById('questionList');
-  container.innerHTML = "";
-  if(!res || !res.questions || !res.questions.length){ container.innerHTML = "<div class='muted'>No questions found.</div>"; return; }
-  res.questions.forEach(q => {
-    const div = document.createElement('div'); div.className='qitem'; div.textContent = q.question;
-    div.onclick = ()=> { document.getElementById('resultArea').style.display='block'; document.getElementById('confidence').textContent = "Answer to: "+q.question; document.getElementById('answerText').textContent = q.answer || "(No answer)"; };
-    container.appendChild(div);
-  });
+async function loadUnits(){
+  try{
+    const url = API_ROOT+"?action=units";
+    console.log("GET", url);
+    const res = await jsonp(url, cb("u"));
+    console.log("UNITS:", res);
+    const sel = document.getElementById('unitSelect');
+    sel.innerHTML="";
+    (res && res.units ? res.units : ["All Units"]).forEach(u => {
+      const o=document.createElement('option'); o.value=u; o.textContent=u; sel.appendChild(o);
+    });
+    sel.onchange = ()=> loadChapters(sel.value);
+    loadChapters(sel.value);
+  }catch(err){ showError(err.message); }
 }
 
-async function askQuestion(){
-  const q = document.getElementById('studentQuestion').value.trim();
-  const chapter = document.getElementById('chapterSelect').value || "All Chapters";
-  const cb = cbName("ask");
-  const url = API_ROOT + "?action=ask&question=" + encodeURIComponent(q) + "&chapter=" + encodeURIComponent(chapter) + "&minScore=40";
-  document.getElementById('message').textContent = "Searching...";
-  document.getElementById('resultArea').style.display = 'none';
-  const res = await loadJSONP(url, cb).catch(()=>null);
-  document.getElementById('message').textContent = "";
-  if(!res){ document.getElementById('message').textContent = "No response."; return; }
-  if(res.error){ document.getElementById('message').textContent = res.error; return; }
-  if(!res.matched_question){ document.getElementById('resultArea').style.display='block'; document.getElementById('confidence').textContent="No close match (score:"+ (res.score||0)+"%)"; document.getElementById('answerText').textContent="No close match found. Try rephrasing."; return; }
-  document.getElementById('resultArea').style.display='block';
-  document.getElementById('confidence').textContent = "Confidence: " + res.score + "% (matched: " + res.matched_question + ")";
-  document.getElementById('answerText').textContent = res.answer || "(No answer)";
+async function loadChapters(unit){
+  try{
+    const url = API_ROOT+"?action=chapters&unit="+encodeURIComponent(unit||"");
+    console.log("GET", url);
+    const res = await jsonp(url, cb("c"));
+    console.log("CHAPTERS:", res);
+    const sel = document.getElementById('chapterSelect');
+    sel.innerHTML="";
+    (res && res.chapters ? res.chapters : ["All Chapters"]).forEach(c => {
+      const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o);
+    });
+    sel.onchange = ()=> loadQuestions(unit, sel.value);
+    loadQuestions(unit, sel.value);
+  }catch(err){ showError(err.message); }
 }
 
-document.getElementById('askBtn').addEventListener('click', askQuestion);
-loadChapters();
-</script>
-</body>
-</html>
+async function loadQuestions(unit, chapter){
+  try{
+    document.getElementById('questionList').innerHTML="Loading...";
+    const url = API_ROOT+"?action=questions&unit="+encodeURIComponent(unit||"")+"&chapter="+encodeURIComponent(chapter||"All Chapters");
+    console.log("GET", url);
+    const res = await jsonp(url, cb("q"));
+    console.log("QUESTIONS:", res);
+    const box = document.getElementById('questionList'); box.innerHTML="";
+    if(!res || !res.questions || !res.questions.length){
+      box.innerHTML="<div class='muted'>No questions found.</div>";
+      return;
+    }
+    res.questions.forEach(q=>{
+      const d=document.createElement('div'); d.className='qitem'; d.textContent=q.question;
+      d.onclick=()=>{
+        document.getElementById('resultArea').style.display='block';
+        document.getElementById('confidence').textContent="Answer to: "+q.question;
+        document.getElementById('answerText').textContent=q.answer||"(No answer)";
+      };
+      box.appendChild(d);
+    });
+    document.getElementById('message').textContent="";
+  }catch(err){ showError(err.message); }
+}
+
+async function ask(){
+  try{
+    const unit = document.getElementById('unitSelect').value||"All Units";
+    const chapter = document.getElementById('chapterSelect').value||"All Chapters";
+    const q = document.getElementById('studentQuestion').value.trim();
+    document.getElementById('message').textContent="Searching...";
+    document.getElementById('resultArea').style.display='none';
+    const url = API_ROOT+"?action=ask&unit="+encodeURIComponent(unit)+"&chapter="+encodeURIComponent(chapter)+"&question="+encodeURIComponent(q)+"&minScore=40";
+    console.log("GET", url);
+    const res = await jsonp(url, cb("a"));
+    console.log("ASK:", res);
+    document.getElementById('message').textContent="";
+    if(!res){ showError("No response."); return; }
+    if(res.error){ showError(res.error); return; }
+    document.getElementById('resultArea').style.display='block';
+    if(!res.matched_question){
+      document.getElementById('confidence').textContent="No close match (score "+(res.score||0)+"%)";
+      document.getElementById('answerText').textContent="No close match found. Try rephrasing.";
+      return;
+    }
+    document.getElementById('confidence').textContent="Confidence: "+res.score+"% (matched: "+res.matched
