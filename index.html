@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Class Chatbot</title>
 
-  <!-- Allow loading JSONP script from Apps Script on GitHub Pages -->
+  <!-- CSP: allow inline JS + Google Script domains -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
-                 script-src 'self' https://script.google.com https://script.googleusercontent.com;
+                 script-src 'self' 'unsafe-inline' https://script.google.com https://script.googleusercontent.com;
                  connect-src 'self' https://script.google.com https://script.googleusercontent.com;
                  img-src 'self' data:;
                  style-src 'self' 'unsafe-inline';
@@ -67,17 +67,12 @@
 
 <script>
 // ======= CONFIG =======
-const API_ROOT = "https://script.google.com/macros/s/AKfycbwcaJHLxlQyGWAJXELQ2piLVCh0UzSgA_EpCOH_ig86NWZ6I7om0KusJvEZrNw9vFFxog/exec"; // your /exec URL
+const API_ROOT = "https://script.google.com/macros/s/AKfycbw1NuX0YGXDPnHarvDo9l_7w2YG2Cu-hcapCBUmjxa0HQKlvcVj6amU8ZkXk95IBmmCyw/exec"; // <-- your Apps Script exec URL
 // ======================
 
 function jsonp(url, cbName){
   return new Promise((resolve,reject)=>{
     const timeout = setTimeout(()=>reject(new Error("JSONP timeout: "+url)), 15000);
-
-    // add cache-buster so CDNs don’t serve stale/no content
-    const sep = url.includes('?') ? '&' : '?';
-    const full = url + sep + "callback=" + encodeURIComponent(cbName) + "&_ts=" + Date.now();
-
     window[cbName] = function(data){
       clearTimeout(timeout);
       resolve(data);
@@ -85,9 +80,9 @@ function jsonp(url, cbName){
       const s=document.getElementById(cbName); if(s) s.remove();
     };
     const s=document.createElement('script');
-    s.src = full;
+    s.src = url + (url.includes('?')?'&':'?') + "callback=" + encodeURIComponent(cbName);
     s.id = cbName;
-    s.onerror = ()=>{ clearTimeout(timeout); reject(new Error("JSONP network error: "+full)); };
+    s.onerror = ()=>{ clearTimeout(timeout); reject(new Error("JSONP error: "+url)); };
     document.body.appendChild(s);
   });
 }
@@ -179,10 +174,8 @@ async function ask(){
     document.getElementById('answerText').textContent=res.answer||"(No answer)";
   }catch(err){ showError(err.message); }
 }
-
 document.getElementById('askBtn').addEventListener('click', ask);
 loadUnits();
 </script>
 </body>
 </html>
-
